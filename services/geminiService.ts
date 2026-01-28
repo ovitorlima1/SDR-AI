@@ -1,14 +1,11 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Client, SegmentAnalysis, MessageTemplate, BilliAnalysis } from '../types';
 
-// Initialize the Gemini AI client
-// NOTE: In a real production app, ensure API_KEY is set in your environment
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-
 const MODEL_NAME = 'gemini-3-flash-preview';
 
 export const analyzeSegments = async (clients: Client[]): Promise<SegmentAnalysis[]> => {
-  // Minimize payload size
   const simplifiedClients = clients.map(c => ({
     id: c.id,
     company: c.company,
@@ -25,10 +22,7 @@ export const analyzeSegments = async (clients: Client[]): Promise<SegmentAnalysi
         segmentName: { type: Type.STRING },
         description: { type: Type.STRING },
         suggestedStrategy: { type: Type.STRING },
-        clientIds: { 
-          type: Type.ARRAY, 
-          items: { type: Type.STRING } 
-        }
+        clientIds: { type: Type.ARRAY, items: { type: Type.STRING } }
       },
       required: ['segmentName', 'description', 'suggestedStrategy', 'clientIds']
     }
@@ -37,32 +31,21 @@ export const analyzeSegments = async (clients: Client[]): Promise<SegmentAnalysi
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Você é um especialista em SDR (Sales Development). Analise a seguinte lista de clientes e agrupe-os em 3 a 5 segmentos estratégicos baseados em indústria, tamanho (número de funcionários) e cargo do contato.
-      
-      Dados dos clientes: ${JSON.stringify(simplifiedClients)}
-      
-      Retorne APENAS o JSON.`,
+      contents: `Você é um especialista em SDR. Analise e segmente: ${JSON.stringify(simplifiedClients)}`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: schema,
-        systemInstruction: "Você é um agente de vendas experiente focado em segmentação de mercado e Account Based Marketing (ABM)."
+        responseSchema: schema
       }
     });
-
-    if (response.text) {
-      return JSON.parse(response.text) as SegmentAnalysis[];
-    }
-    return [];
+    return response.text ? JSON.parse(response.text) : [];
   } catch (error) {
-    console.error("Error analyzing segments:", error);
-    throw new Error("Falha ao analisar segmentos com Gemini.");
+    console.error(error);
+    return [];
   }
 };
 
 export const generateCampaignMessage = async (segment: string, clients: Client[]): Promise<MessageTemplate> => {
-  // Context for the AI
-  const context = clients.slice(0, 5).map(c => `${c.role} na ${c.company} (${c.industry})`).join(', ');
-
+  const context = clients.slice(0, 5).map(c => `${c.role} na ${c.company}`).join(', ');
   const schema: Schema = {
     type: Type.OBJECT,
     properties: {
@@ -76,131 +59,110 @@ export const generateCampaignMessage = async (segment: string, clients: Client[]
   try {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Crie um modelo de e-mail frio (cold mail) curto e persuasivo para o segmento: "${segment}".
-      
-      O público alvo inclui perfis como: ${context}.
-      
-      O objetivo é agendar uma demonstração da nossa solução de otimização de vendas. Use tom profissional mas próximo.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: schema
-      }
+      contents: `Crie um cold mail para o segmento "${segment}". Alvos: ${context}`,
+      config: { responseMimeType: "application/json", responseSchema: schema }
     });
-
-    if (response.text) {
-      return JSON.parse(response.text) as MessageTemplate;
-    }
-    throw new Error("Resposta vazia do modelo");
+    return JSON.parse(response.text || '{}');
   } catch (error) {
-    console.error("Error generating message:", error);
-    throw new Error("Falha ao gerar mensagem com Gemini.");
+    throw new Error("Falha ao gerar mensagem.");
   }
 };
 
 export const qualifyCompany = async (companyName: string): Promise<BilliAnalysis> => {
-  // Schema for the Billi/GEM Analysis
   const schema: Schema = {
     type: Type.OBJECT,
     properties: {
-      companyName: { type: Type.STRING },
-      sector: { type: Type.STRING },
-      billiTotalScore: { type: Type.INTEGER, description: "Total score from 0 to 12" },
-      profileCode: { type: Type.STRING, enum: ['A', 'B', 'C', 'D'] },
-      profileName: { type: Type.STRING },
-      axes: {
+      identification: {
         type: Type.OBJECT,
         properties: {
-          maturity: {
+          razaoSocial: { type: Type.STRING },
+          cnpj: { type: Type.STRING },
+          cnae: { type: Type.STRING },
+          localizacao: { type: Type.STRING },
+          ecossistema: { type: Type.STRING }
+        },
+        required: ['razaoSocial', 'cnpj', 'cnae', 'localizacao', 'ecossistema']
+      },
+      eixos: {
+        type: Type.OBJECT,
+        properties: {
+          eixo1: {
             type: Type.OBJECT,
-            properties: { score: { type: Type.INTEGER }, max: { type: Type.INTEGER }, reasoning: { type: Type.STRING } }
+            properties: { sinais: { type: Type.ARRAY, items: { type: Type.STRING } }, veredito: { type: Type.STRING } }
           },
-          energy: {
+          eixo2: {
             type: Type.OBJECT,
-            properties: { score: { type: Type.INTEGER }, max: { type: Type.INTEGER }, reasoning: { type: Type.STRING } }
-          },
-          capital: {
-            type: Type.OBJECT,
-            properties: { score: { type: Type.INTEGER }, max: { type: Type.INTEGER }, reasoning: { type: Type.STRING } }
-          },
-          language: {
-            type: Type.OBJECT,
-            properties: { score: { type: Type.INTEGER }, max: { type: Type.INTEGER }, reasoning: { type: Type.STRING } }
+            properties: { sinais: { type: Type.ARRAY, items: { type: Type.STRING } }, veredito: { type: Type.STRING } }
           }
         },
-        required: ['maturity', 'energy', 'capital', 'language']
+        required: ['eixo1', 'eixo2']
       },
-      narrative: { type: Type.STRING },
-      action: { type: Type.STRING }
+      scoring: {
+        type: Type.OBJECT,
+        properties: {
+          maturity: { type: Type.OBJECT, properties: { evidence: { type: Type.STRING }, points: { type: Type.INTEGER } } },
+          energy: { type: Type.OBJECT, properties: { evidence: { type: Type.STRING }, points: { type: Type.INTEGER } } },
+          capital: { type: Type.OBJECT, properties: { evidence: { type: Type.STRING }, points: { type: Type.INTEGER } } },
+          language: { type: Type.OBJECT, properties: { evidence: { type: Type.STRING }, points: { type: Type.INTEGER } } },
+          total: { type: Type.INTEGER }
+        },
+        required: ['maturity', 'energy', 'capital', 'language', 'total']
+      },
+      profile: {
+        type: Type.OBJECT,
+        properties: {
+          code: { type: Type.STRING },
+          name: { type: Type.STRING },
+          reason: { type: Type.STRING },
+          pain: { type: Type.STRING },
+          opportunity: { type: Type.STRING }
+        },
+        required: ['code', 'name', 'reason', 'pain', 'opportunity']
+      },
+      nextSteps: {
+        type: Type.OBJECT,
+        properties: {
+          donts: { type: Type.ARRAY, items: { type: Type.STRING } },
+          do: { type: Type.OBJECT, properties: { narrative: { type: Type.STRING }, trigger: { type: Type.STRING } } }
+        },
+        required: ['donts', 'do']
+      }
     },
-    required: ['companyName', 'sector', 'billiTotalScore', 'profileCode', 'profileName', 'axes', 'narrative', 'action']
+    required: ['identification', 'eixos', 'scoring', 'profile', 'nextSteps']
   };
 
   try {
-    // We use search grounding to get real public data
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Você é o BILLI · Lead Intelligence Agent.
-      Sua missão é qualificar a empresa "${companyName}" usando APENAS dados públicos (Search).
+      contents: `Você é o BILLI · Lead Intelligence Agent (LIA). 
+      Sua missão é gerar um relatório de qualificação detalhado para a empresa "${companyName}" baseado nos 5 eixos do PDF de referência.
       
-      SISTEMA DE PONTUAÇÃO (Billi Fit Score - 0 a 12):
-      
-      1. MATURIDADE (0-4 pts):
-         - Porte médio/grande (+1)
-         - >5 anos operação (+1)
-         - Estrutura admin/financeira clara (+1)
-         - Área financeira explícita (+1)
-      
-      2. ENERGIA (0-3 pts):
-         - Setor intensivo em energia (+2)
-         - Operação física relevante (+1)
-      
-      3. CAPITAL (0-3 pts):
-         - Notícias de financiamento estruturado/M&A (+2)
-         - Uso de incentivos/BNDES/FIDC (+1)
-         - Se capital próprio/orgânico apenas (0)
-      
-      4. LINGUAGEM (0-2 pts):
-         - Fala em "eficiência", "margem", "previsibilidade" (+1)
-         - Fala em "planejamento", "governança" (+1)
-      
-      CLASSIFICAÇÃO FINAL:
-      0-3 pts: C (Pagador Reativo)
-      4-6 pts: D (Oportunista de Caixa)
-      7-9 pts: A (Guardião do Caixa)
-      10-12 pts: B (Arquiteto Financeiro - IDEAL)
-      
-      Busque informações sobre: Setor, Tamanho, Processos (Jusbrasil, News, Linkedin, Site), Prêmios, ESG.
-      `,
+      REGRAS DE ANÁLISE:
+      1. IDENTIFICAÇÃO: Busque Razão Social Real, CNPJ base, CNAE principal e secundários relevantes, Localização e Ecossistema (sócios, holdings).
+      2. EIXO 1 (Futuro): Analise se a empresa emite Warrant (sinal de antecipação), se é indústria que compra safra (previsibilidade).
+      3. EIXO 2 (Decisão): Verifique se verticalizou (Indústria/Logística), se tem CAPEX alto ou se é apenas trading.
+      4. SCORING (0-12): 
+         A. Estrutura/Maturidade (3 pts)
+         B. Intensidade Energética (3 pts)
+         C. Relação com Capital (3 pts)
+         D. Linguagem/Estratégia (3 pts)
+      5. PERFIL: Identifique se é "ARQUITETO FINANCEIRO" (O ideal), "Guardião", "Oportunista" ou "Pagador".
+      6. PRÓXIMOS PASSOS: Liste o que NÃO fazer (ex: falar de economia de energia pequena) e o que FAZER (narrativa de eficiência de margem).`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
-        responseSchema: schema
+        responseSchema: schema,
+        systemInstruction: "Você é um agente LIA especializado em inteligência de mercado para o agronegócio e indústria intensiva em capital."
       }
     });
 
-    const output = response.text ? JSON.parse(response.text) as BilliAnalysis : null;
-
-    if (!output) throw new Error("Falha na análise.");
-
-    // Extract sources if available
+    const output = JSON.parse(response.text || '{}') as BilliAnalysis;
     const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    const sources: { title: string; uri: string }[] = [];
-    
-    if (groundingChunks) {
-      groundingChunks.forEach(chunk => {
-        if (chunk.web?.uri) {
-          sources.push({
-            title: chunk.web.title || new URL(chunk.web.uri).hostname,
-            uri: chunk.web.uri
-          });
-        }
-      });
-    }
+    const sources = groundingChunks?.map(c => ({ title: c.web?.title || 'Fonte', uri: c.web?.uri || '' })).filter(s => s.uri) || [];
 
-    return { ...output, sources: sources.slice(0, 5) }; // Limit sources
-
+    return { ...output, sources: sources.slice(0, 5) };
   } catch (error) {
-    console.error("Error qualifying lead:", error);
-    throw new Error("Falha ao qualificar lead com Gemini.");
+    console.error(error);
+    throw new Error("Falha na qualificação LIA.");
   }
 };

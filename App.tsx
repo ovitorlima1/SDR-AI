@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
@@ -12,19 +13,12 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [clients, setClients] = useState<Client[]>(MOCK_CLIENTS);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [pendingQualification, setPendingQualification] = useState<string | null>(null);
 
   const handleRunAnalysis = async () => {
-    if (!process.env.API_KEY) {
-      alert("API Key do Gemini não encontrada. Por favor configure a variável de ambiente.");
-      // For demo purposes, we might not block, but in production we should.
-      // return; 
-    }
-
     setIsAnalyzing(true);
     try {
       const segments = await analyzeSegments(clients);
-      
-      // Update clients with their new segments based on the AI response
       const updatedClients = [...clients];
       
       segments.forEach(seg => {
@@ -43,10 +37,15 @@ const App: React.FC = () => {
       setClients(updatedClients);
     } catch (error) {
       console.error(error);
-      alert("Houve um erro ao tentar segmentar os clientes. Verifique o console ou a API Key.");
+      alert("Houve um erro ao tentar segmentar os clientes.");
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const handleQualifyClient = (companyName: string) => {
+    setPendingQualification(companyName);
+    setCurrentView('qualifier');
   };
 
   const renderContent = () => {
@@ -60,9 +59,20 @@ const App: React.FC = () => {
           />
         );
       case 'clients':
-        return <ClientList clients={clients} setClients={setClients} />;
+        return (
+          <ClientList 
+            clients={clients} 
+            setClients={setClients} 
+            onQualify={handleQualifyClient} 
+          />
+        );
       case 'qualifier':
-        return <LeadQualifier />;
+        return (
+          <LeadQualifier 
+            initialCompanyName={pendingQualification || undefined} 
+            onClearInitial={() => setPendingQualification(null)}
+          />
+        );
       case 'campaigns':
         return <CampaignManager clients={clients} />;
       default:

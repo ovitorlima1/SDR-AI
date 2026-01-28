@@ -41,7 +41,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ clients, onAnalyze, isAnal
         </div>
         <button
           onClick={onAnalyze}
-          disabled={isAnalyzing}
+          disabled={isAnalyzing || clients.length === 0}
           className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
         >
           {isAnalyzing ? (
@@ -85,7 +85,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ clients, onAnalyze, isAnal
           <div className="mt-4 w-full bg-slate-100 rounded-full h-2">
             <div 
               className="bg-green-500 h-2 rounded-full transition-all duration-500" 
-              style={{ width: `${(segmentedClients / totalClients) * 100}%` }}
+              style={{ width: `${totalClients > 0 ? (segmentedClients / totalClients) * 100 : 0}%` }}
             ></div>
           </div>
         </div>
@@ -106,11 +106,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ clients, onAnalyze, isAnal
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-lg font-semibold text-slate-800 mb-4">Distribuição por Segmento</h3>
-          <div className="h-64">
-            {segmentData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] w-full min-h-[300px]">
+            {segmentData.length > 0 && totalClients > 0 ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                 <PieChart>
                   <Pie
                     data={segmentData}
@@ -130,25 +130,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ clients, onAnalyze, isAnal
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+              <div className="flex items-center justify-center h-full text-slate-400 text-sm border-2 border-dashed border-slate-100 rounded-lg">
                 Sem dados de segmentação
               </div>
             )}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
           <h3 className="text-lg font-semibold text-slate-800 mb-4">Distribuição por Indústria</h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={industryData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" tick={{fontSize: 12}} interval={0} height={50} tickFormatter={(val) => val.slice(0, 10) + (val.length > 10 ? '...' : '')} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#4f46e5" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-[300px] w-full min-h-[300px]">
+            {industryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <BarChart data={industryData} margin={{ bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{fontSize: 10}} 
+                    interval={0} 
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis tick={{fontSize: 12}} />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400 text-sm border-2 border-dashed border-slate-100 rounded-lg">
+                Importe dados para ver estatísticas
+              </div>
+            )}
           </div>
         </div>
       </div>

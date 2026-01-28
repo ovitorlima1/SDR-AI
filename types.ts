@@ -1,10 +1,3 @@
-export enum SegmentType {
-  ENTERPRISE_TECH = 'Enterprise Tech',
-  SMB_RETAIL = 'SMB Retail',
-  FINTECH_GROWTH = 'Fintech Growth',
-  HEALTHCARE_SERVICES = 'Healthcare Services',
-  UNKNOWN = 'Não Segmentado'
-}
 
 export interface Client {
   id: string;
@@ -14,7 +7,7 @@ export interface Client {
   industry: string;
   employees: number;
   lastContact?: string;
-  segment: string; // Dynamic string to allow AI to define new segments or map to known ones
+  segment: string;
   aiRationale?: string;
   email: string;
 }
@@ -32,26 +25,39 @@ export interface MessageTemplate {
   segmentName: string;
 }
 
-export interface BilliScore {
-  score: number;
-  max: number;
-  reasoning: string;
-}
-
 export interface BilliAnalysis {
-  companyName: string;
-  sector: string;
-  billiTotalScore: number; // 0-12
-  profileCode: 'A' | 'B' | 'C' | 'D';
-  profileName: string; // e.g. "Arquiteto Financeiro"
-  axes: {
-    maturity: BilliScore; // 0-4
-    energy: BilliScore; // 0-3
-    capital: BilliScore; // 0-3
-    language: BilliScore; // 0-2
+  identification: {
+    razaoSocial: string;
+    cnpj: string;
+    cnae: string;
+    localizacao: string;
+    ecossistema: string;
   };
-  narrative: string;
-  action: string;
+  eixos: {
+    eixo1: { sinais: string[]; veredito: string };
+    eixo2: { sinais: string[]; veredito: string };
+  };
+  scoring: {
+    maturity: { evidence: string; points: number };
+    energy: { evidence: string; points: number };
+    capital: { evidence: string; points: number };
+    language: { evidence: string; points: number };
+    total: number;
+  };
+  profile: {
+    code: string;
+    name: string;
+    reason: string;
+    pain: string;
+    opportunity: string;
+  };
+  nextSteps: {
+    donts: string[];
+    do: {
+      narrative: string;
+      trigger: string;
+    };
+  };
   sources?: { title: string; uri: string }[];
 }
 

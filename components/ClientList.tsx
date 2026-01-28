@@ -1,28 +1,23 @@
+
 import React, { useState, useRef } from 'react';
-import { Search, Filter, Briefcase, Users, Building, Plus, Upload, X, Download } from 'lucide-react';
+import { Search, Filter, Briefcase, Users, Building, Plus, Upload, X, Target, Zap } from 'lucide-react';
 import { Client } from '../types';
 import * as XLSX from 'xlsx';
 
 interface ClientListProps {
   clients: Client[];
   setClients: (clients: Client[]) => void;
+  onQualify?: (companyName: string) => void;
 }
 
-export const ClientList: React.FC<ClientListProps> = ({ clients, setClients }) => {
+export const ClientList: React.FC<ClientListProps> = ({ clients, setClients, onQualify }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSegment, setSelectedSegment] = useState<string>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // New Client State
   const [newClient, setNewClient] = useState<Partial<Client>>({
-    name: '',
-    email: '',
-    company: '',
-    role: '',
-    industry: '',
-    employees: 0,
-    segment: 'Não Segmentado'
+    name: '', email: '', company: '', role: '', industry: '', employees: 0, segment: 'Não Segmentado'
   });
 
   const segments = Array.from(new Set(clients.map(c => c.segment)));
@@ -81,15 +76,10 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients }) =
       const ws = wb.Sheets[wsname];
       const data = XLSX.utils.sheet_to_json(ws) as any[];
 
-      // Map Excel columns to our structure based on user request:
-      // Col AV: NOME
-      // Col B: EMPRESA
-      // Col P: TIPO_TARIFA (mapped to Industry/Sector context)
       const importedClients: Client[] = data.map((row: any) => ({
         id: Math.random().toString(36).substr(2, 9),
         name: row['NOME'] || row['Nome'] || 'Sem Nome',
         company: row['EMPRESA'] || row['Empresa'] || 'Sem Empresa',
-        // Using TIPO_TARIFA as Industry/Sector proxy
         industry: row['TIPO_TARIFA'] || row['Tipo Tarifa'] || 'Energia',
         email: row['EMAIL'] || row['Email'] || '',
         role: row['CARGO'] || row['Cargo'] || 'Contato',
@@ -99,12 +89,7 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients }) =
 
       if (importedClients.length > 0) {
         setClients([...importedClients, ...clients]);
-        alert(`${importedClients.length} clientes importados com sucesso!`);
-      } else {
-        alert("Nenhum dado válido encontrado no Excel. Verifique se as colunas NOME, EMPRESA e TIPO_TARIFA existem.");
       }
-      
-      // Reset input
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
@@ -125,14 +110,7 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients }) =
             <Upload size={18} className="mr-2" />
             Importar Excel
           </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload} 
-            accept=".xlsx, .xls, .csv" 
-            className="hidden" 
-          />
-
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls, .csv" className="hidden" />
           <button 
             onClick={() => setIsModalOpen(true)}
             className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
@@ -162,14 +140,11 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients }) =
             onChange={(e) => setSelectedSegment(e.target.value)}
           >
             <option value="all">Todos os Segmentos</option>
-            {segments.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
+            {segments.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
       </div>
 
-      {/* Tabela */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -178,11 +153,12 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients }) =
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Cliente</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Segmento & Racional</th>
                 <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Detalhes</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center">Ações LIA</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredClients.map((client) => (
-                <tr key={client.id} className="hover:bg-slate-50 transition-colors">
+                <tr key={client.id} className="hover:bg-slate-50 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
                       <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold mr-3">
@@ -191,7 +167,6 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients }) =
                       <div>
                         <div className="font-medium text-slate-900">{client.name}</div>
                         <div className="text-sm text-slate-500">{client.role}</div>
-                        <div className="text-xs text-slate-400">{client.email}</div>
                       </div>
                     </div>
                   </td>
@@ -199,140 +174,44 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients }) =
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSegmentColor(client.segment)}`}>
                       {client.segment}
                     </span>
-                    {client.aiRationale && (
-                      <p className="mt-2 text-xs text-slate-500 italic max-w-xs">
-                        "{client.aiRationale}"
-                      </p>
-                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="space-y-1 text-sm text-slate-600">
-                      <div className="flex items-center">
-                        <Building size={14} className="mr-2 text-slate-400" />
-                        {client.company}
-                      </div>
-                      <div className="flex items-center">
-                        <Briefcase size={14} className="mr-2 text-slate-400" />
-                        {client.industry}
-                      </div>
-                      <div className="flex items-center">
-                        <Users size={14} className="mr-2 text-slate-400" />
-                        {client.employees} funcionários
-                      </div>
+                      <div className="flex items-center"><Building size={14} className="mr-2 text-slate-400" />{client.company}</div>
+                      <div className="flex items-center"><Briefcase size={14} className="mr-2 text-slate-400" />{client.industry}</div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <button
+                      onClick={() => onQualify && onQualify(client.company)}
+                      title="Qualificar com LIA"
+                      className="inline-flex items-center justify-center p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                    >
+                      <Zap size={18} className="fill-current" />
+                      <span className="ml-2 text-xs font-bold hidden group-hover:inline">Qualificar</span>
+                    </button>
                   </td>
                 </tr>
               ))}
-              {filteredClients.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-6 py-12 text-center text-slate-400">
-                    {clients.length === 0 ? "Nenhum cliente cadastrado. Importe um Excel ou adicione manualmente." : "Nenhum cliente encontrado com os filtros atuais."}
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Add Client Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100">
-              <h3 className="text-lg font-bold text-slate-900">Novo Cliente</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X size={20} />
-              </button>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-bold">Novo Cliente</h3>
+              <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
             </div>
-            
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Nome Completo</label>
-                <input
-                  required
-                  name="name"
-                  value={newClient.name}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none"
-                  placeholder="Ex: João Silva"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Empresa</label>
-                  <input
-                    required
-                    name="company"
-                    value={newClient.company}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none"
-                    placeholder="Ex: Acme Corp"
-                  />
-                </div>
-                <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">Indústria</label>
-                   <input
-                    name="industry"
-                    value={newClient.industry}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none"
-                    placeholder="Ex: Tecnologia"
-                   />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Email Corporativo</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={newClient.email}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none"
-                  placeholder="joao@acme.com"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">Cargo</label>
-                   <input
-                    name="role"
-                    value={newClient.role}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none"
-                    placeholder="Ex: CEO"
-                   />
-                </div>
-                <div>
-                   <label className="block text-sm font-medium text-slate-700 mb-1">Funcionários</label>
-                   <input
-                    type="number"
-                    name="employees"
-                    value={newClient.employees}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none"
-                    placeholder="100"
-                   />
-                </div>
-              </div>
-
-              <div className="pt-2 flex gap-3">
-                 <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)}
-                  className="flex-1 py-2 border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50"
-                 >
-                   Cancelar
-                 </button>
-                 <button 
-                  type="submit" 
-                  className="flex-1 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90"
-                 >
-                   Salvar Cliente
-                 </button>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input name="name" value={newClient.name} onChange={handleInputChange} placeholder="Nome" className="w-full p-2 border rounded" required />
+              <input name="company" value={newClient.company} onChange={handleInputChange} placeholder="Empresa" className="w-full p-2 border rounded" required />
+              <input name="industry" value={newClient.industry} onChange={handleInputChange} placeholder="Indústria" className="w-full p-2 border rounded" />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 p-2 border rounded">Cancelar</button>
+                <button type="submit" className="flex-1 p-2 bg-primary text-white rounded">Salvar</button>
               </div>
             </form>
           </div>
