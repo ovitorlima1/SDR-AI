@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Search, Filter, Briefcase, Users, Building, Plus, Upload, X, Target, Zap } from 'lucide-react';
+import { Search, Filter, Briefcase, Users, Building, Plus, Upload, X, Target, Zap, FileSpreadsheet, Info } from 'lucide-react';
 import { Client } from '../types';
 import * as XLSX from 'xlsx';
 
@@ -64,6 +64,12 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients, onQ
     });
   };
 
+  const isCnpj = (val: any) => {
+    if (!val) return false;
+    const str = String(val).replace(/[^\d]/g, '');
+    return str.length === 14;
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -74,18 +80,73 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients, onQ
       const wb = XLSX.read(bstr, { type: 'binary' });
       const wsname = wb.SheetNames[0];
       const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws) as any[];
+      
+      // Lemos como matriz 2D para detectar cabeçalhos manualmente
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+      if (rows.length === 0) return;
 
-      const importedClients: Client[] = data.map((row: any) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        name: row['NOME'] || row['Nome'] || 'Sem Nome',
-        company: row['EMPRESA'] || row['Empresa'] || 'Sem Empresa',
-        industry: row['TIPO_TARIFA'] || row['Tipo Tarifa'] || 'Energia',
-        email: row['EMAIL'] || row['Email'] || '',
-        role: row['CARGO'] || row['Cargo'] || 'Contato',
-        employees: Number(row['Funcionarios'] || row['Employees']) || 1,
-        segment: 'Não Segmentado'
-      }));
+      const firstRow = rows[0];
+      const knownHeaders = ['NOME', 'EMPRESA', 'CNPJ', 'RAZAO', 'CARGO', 'EMAIL', 'INDUSTRIA'];
+      
+      // Detectar se a primeira linha é cabeçalho
+      const hasHeader = firstRow.some(cell => 
+        typeof cell === 'string' && knownHeaders.some(h => cell.toUpperCase().includes(h))
+      );
+
+      let dataToProcess = hasHeader ? rows.slice(1) : rows;
+      let headerMap: Record<string, number> = {};
+
+      if (hasHeader) {
+        firstRow.forEach((cell, idx) => {
+          if (cell) headerMap[String(cell).toUpperCase().trim()] = idx;
+        });
+      }
+
+      const importedClients: Client[] = dataToProcess.map((row) => {
+        let name = 'Sem Nome';
+        let company = 'Sem Empresa';
+        let industry = 'Geral';
+        let email = '';
+        let role = 'Lead';
+
+        if (hasHeader) {
+          // Mapeamento dinâmico baseado no cabeçalho encontrado
+          const cnpjIdx = headerMap['CNPJ'];
+          const nameIdx = headerMap['NOME'] || headerMap['NAME'] || headerMap['CONTATO'];
+          const companyIdx = headerMap['EMPRESA'] || headerMap['COMPANY'] || headerMap['RAZÃO SOCIAL'] || headerMap['RAZAO SOCIAL'];
+          const emailIdx = headerMap['EMAIL'];
+          const roleIdx = headerMap['CARGO'] || headerMap['ROLE'];
+          const indIdx = headerMap['INDÚSTRIA'] || headerMap['INDUSTRIA'] || headerMap['SETOR'];
+
+          const cnpjVal = cnpjIdx !== undefined ? row[cnpjIdx] : null;
+          company = String(row[companyIdx] || cnpjVal || 'Sem Empresa');
+          name = String(row[nameIdx] || (cnpjVal ? `Lead CNPJ: ${cnpjVal}` : 'Sem Nome'));
+          email = String(row[emailIdx] || '');
+          role = String(row[roleIdx] || 'Lead');
+          industry = String(row[indIdx] || 'Geral');
+        } else {
+          // Se não tem cabeçalho, verificamos se é uma lista de CNPJs ou se a primeira coluna é o dado principal
+          const firstCell = row[0];
+          if (isCnpj(firstCell)) {
+            company = String(firstCell);
+            name = `Lead CNPJ: ${firstCell}`;
+          } else {
+            company = String(firstCell || 'Sem Empresa');
+            name = `Importado: ${company}`;
+          }
+        }
+
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          name,
+          company,
+          industry,
+          email,
+          role,
+          employees: 0,
+          segment: 'Não Segmentado'
+        };
+      }).filter(c => c.company !== 'undefined' && c.company !== 'null' && c.company !== '');
 
       if (importedClients.length > 0) {
         setClients([...importedClients, ...clients]);
@@ -100,20 +161,23 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients, onQ
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Carteira de Clientes</h2>
-          <p className="text-slate-500">Gerencie e visualize seus leads detalhadamente.</p>
+          <div className="flex items-center gap-2 text-slate-500 text-sm mt-1">
+            <Info size={14} className="text-primary" />
+            <span>Suporta planilhas completas ou apenas lista de CNPJs (coluna A).</span>
+          </div>
         </div>
         <div className="flex gap-2">
            <button 
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors"
+            className="flex items-center px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
            >
-            <Upload size={18} className="mr-2" />
+            <FileSpreadsheet size={18} className="mr-2 text-green-600" />
             Importar Excel
           </button>
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls, .csv" className="hidden" />
           <button 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
           >
             <Plus size={18} className="mr-2" />
             Novo Cliente
@@ -126,8 +190,8 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients, onQ
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
           <input
             type="text"
-            placeholder="Buscar por nome ou empresa..."
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-transparent bg-slate-800 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            placeholder="Buscar por nome, empresa ou CNPJ..."
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-transparent bg-slate-800 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary/50 shadow-inner"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -150,68 +214,93 @@ export const ClientList: React.FC<ClientListProps> = ({ clients, setClients, onQ
           <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Cliente</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Segmento & Racional</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Detalhes</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-center">Ações LIA</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Lead / Contato</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Segmento IA</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Empresa / CNPJ</th>
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredClients.map((client) => (
-                <tr key={client.id} className="hover:bg-slate-50 transition-colors group">
+                <tr key={client.id} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="px-6 py-4">
                     <div className="flex items-center">
-                      <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center text-slate-600 font-bold mr-3">
+                      <div className="w-9 h-9 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-bold mr-3">
                         {client.name.charAt(0)}
                       </div>
                       <div>
-                        <div className="font-medium text-slate-900">{client.name}</div>
-                        <div className="text-sm text-slate-500">{client.role}</div>
+                        <div className="font-semibold text-slate-900 text-sm">{client.name}</div>
+                        <div className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">{client.role}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSegmentColor(client.segment)}`}>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${getSegmentColor(client.segment)}`}>
                       {client.segment}
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="space-y-1 text-sm text-slate-600">
-                      <div className="flex items-center"><Building size={14} className="mr-2 text-slate-400" />{client.company}</div>
-                      <div className="flex items-center"><Briefcase size={14} className="mr-2 text-slate-400" />{client.industry}</div>
+                    <div className="space-y-0.5">
+                      <div className="flex items-center text-sm font-medium text-slate-700">
+                        <Building size={14} className="mr-2 text-slate-300" />
+                        {client.company}
+                      </div>
+                      <div className="flex items-center text-[11px] text-slate-400">
+                        <Briefcase size={12} className="mr-2" />
+                        {client.industry}
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <button
                       onClick={() => onQualify && onQualify(client.company)}
-                      title="Qualificar com LIA"
-                      className="inline-flex items-center justify-center p-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
+                      className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm font-bold text-xs"
                     >
-                      <Zap size={18} className="fill-current" />
-                      <span className="ml-2 text-xs font-bold hidden group-hover:inline">Qualificar</span>
+                      <Zap size={14} className="fill-current text-yellow-300" />
+                      QUALIFICAR LIA
                     </button>
                   </td>
                 </tr>
               ))}
+              {filteredClients.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-24 text-center">
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <Users size={48} className="opacity-10 mb-2" />
+                      <p className="font-medium">Nenhum lead disponível.</p>
+                      <p className="text-sm">Importe uma planilha para popular sua base de prospecção.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-200">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold">Novo Cliente</h3>
-              <button onClick={() => setIsModalOpen(false)}><X size={20} /></button>
+              <h3 className="text-xl font-bold text-slate-900">Novo Lead</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-1.5 rounded-full transition-colors"><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
-              <input name="name" value={newClient.name} onChange={handleInputChange} placeholder="Nome" className="w-full p-2 border rounded" required />
-              <input name="company" value={newClient.company} onChange={handleInputChange} placeholder="Empresa" className="w-full p-2 border rounded" required />
-              <input name="industry" value={newClient.industry} onChange={handleInputChange} placeholder="Indústria" className="w-full p-2 border rounded" />
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 p-2 border rounded">Cancelar</button>
-                <button type="submit" className="flex-1 p-2 bg-primary text-white rounded">Salvar</button>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Nome do Contato</label>
+                <input name="name" value={newClient.name} onChange={handleInputChange} placeholder="Ex: Diretor de Compras" className="w-full p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all" required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Empresa ou CNPJ</label>
+                <input name="company" value={newClient.company} onChange={handleInputChange} placeholder="Razão Social ou 00.000.000/0001-00" className="w-full p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all" required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Indústria (Opcional)</label>
+                <input name="industry" value={newClient.industry} onChange={handleInputChange} placeholder="Ex: Agronegócio" className="w-full p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
+              </div>
+              <div className="flex gap-3 pt-6">
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 font-bold text-slate-600 transition-colors">Cancelar</button>
+                <button type="submit" className="flex-1 p-2.5 bg-primary text-white rounded-xl hover:bg-primary/90 font-bold shadow-lg shadow-primary/20 transition-all transform active:scale-95">Salvar Lead</button>
               </div>
             </form>
           </div>

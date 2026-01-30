@@ -68,7 +68,7 @@ export const generateCampaignMessage = async (segment: string, clients: Client[]
   }
 };
 
-export const qualifyCompany = async (companyName: string): Promise<BilliAnalysis> => {
+export const qualifyCompany = async (companyOrCnpj: string): Promise<BilliAnalysis> => {
   const schema: Schema = {
     type: Type.OBJECT,
     properties: {
@@ -135,7 +135,12 @@ export const qualifyCompany = async (companyName: string): Promise<BilliAnalysis
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Você é o BILLI · Lead Intelligence Agent (LIA). 
-      Sua missão é gerar um relatório de qualificação detalhado para a empresa "${companyName}" baseado nos 5 eixos do PDF de referência.
+      Você recebeu o termo de busca: "${companyOrCnpj}". Pode ser um NOME de empresa ou um CNPJ.
+      Sua missão é gerar um relatório de qualificação detalhado baseado nos 5 eixos do PDF de referência.
+      
+      IMPORTANTE:
+      - Se for um CNPJ, resolva primeiro qual é a Razão Social da empresa antes de analisar os eixos.
+      - Use o Google Search para encontrar dados reais e recentes.
       
       REGRAS DE ANÁLISE:
       1. IDENTIFICAÇÃO: Busque Razão Social Real, CNPJ base, CNAE principal e secundários relevantes, Localização e Ecossistema (sócios, holdings).
@@ -147,12 +152,12 @@ export const qualifyCompany = async (companyName: string): Promise<BilliAnalysis
          C. Relação com Capital (3 pts)
          D. Linguagem/Estratégia (3 pts)
       5. PERFIL: Identifique se é "ARQUITETO FINANCEIRO" (O ideal), "Guardião", "Oportunista" ou "Pagador".
-      6. PRÓXIMOS PASSOS: Liste o que NÃO fazer (ex: falar de economia de energia pequena) e o que FAZER (narrativa de eficiência de margem).`,
+      6. PRÓXIMOS PASSOS: Liste o que NÃO fazer e o que FAZER.`,
       config: {
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: schema,
-        systemInstruction: "Você é um agente LIA especializado em inteligência de mercado para o agronegócio e indústria intensiva em capital."
+        systemInstruction: "Você é um agente LIA especializado em inteligência de mercado para o agronegócio e indústria intensiva em capital. Sua especialidade é transformar dados públicos em narrativas de vendas de alto impacto."
       }
     });
 
