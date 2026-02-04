@@ -3,20 +3,29 @@ export interface Client {
   id: string;
   name: string;
   company: string;
+  cnpj?: string; // Adicionado campo CNPJ
   role: string;
   industry: string;
   employees: number;
   lastContact?: string;
   segment: string;
+  category: 'Indústria' | 'Serviços' | 'Comércio' | 'Não Definido';
+  state: string;
+  cnae?: string;
+  profile?: string; // Gestor, Pagador, Arquiteto Financeiro, etc.
   aiRationale?: string;
   email: string;
+  tariffType?: string; // Ex: A4 - THS_VERDE, OPT B2, etc.
 }
 
 export interface SegmentAnalysis {
+  clientId: string;
   segmentName: string;
+  category: 'Indústria' | 'Serviços' | 'Comércio';
+  state: string;
+  cnae: string;
+  profile: string;
   description: string;
-  suggestedStrategy: string;
-  clientIds: string[];
 }
 
 export interface MessageTemplate {

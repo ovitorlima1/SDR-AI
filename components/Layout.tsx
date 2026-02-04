@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { LayoutDashboard, Users, Send, Menu, Target } from 'lucide-react';
 import { ViewState } from '../types';
@@ -34,15 +35,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200">
         <div className="p-6 border-b border-slate-100">
           <h1 className="text-xl font-bold text-slate-800 flex items-center">
-            <span className="w-8 h-8 bg-primary rounded-lg mr-2 flex items-center justify-center text-white text-lg">S</span>
-            SDR Agent
+            <span className="w-8 h-8 bg-primary rounded-lg mr-2 flex items-center justify-center text-slate-900 text-lg font-black">B</span>
+            SDR Billi
           </h1>
         </div>
         
         <nav className="flex-1 p-4">
           <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
           <NavItem view="clients" icon={Users} label="Clientes" />
-          <NavItem view="qualifier" icon={Target} label="Qualificador BILLI" />
+          <NavItem view="qualifier" icon={Target} label="Qualificador Billi" />
           <NavItem view="campaigns" icon={Send} label="Campanhas" />
         </nav>
 
@@ -53,7 +54,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
             </div>
             <div className="ml-3">
               <p className="text-sm font-medium text-slate-700">João Doe</p>
-              <p className="text-xs text-slate-500">SDR Senior</p>
+              <p className="text-xs text-slate-500">SDR Billi</p>
             </div>
           </div>
         </div>
@@ -63,7 +64,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile Header */}
         <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200">
-          <h1 className="font-bold text-lg text-slate-800">SDR Agent</h1>
+          <h1 className="font-bold text-lg text-slate-800">SDR Billi</h1>
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-600">
             <Menu size={24} />
           </button>
@@ -80,7 +81,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onChangeV
             <nav>
               <NavItem view="dashboard" icon={LayoutDashboard} label="Dashboard" />
               <NavItem view="clients" icon={Users} label="Clientes" />
-              <NavItem view="qualifier" icon={Target} label="Qualificador BILLI" />
+              <NavItem view="qualifier" icon={Target} label="Qualificador Billi" />
               <NavItem view="campaigns" icon={Send} label="Campanhas" />
             </nav>
           </div>

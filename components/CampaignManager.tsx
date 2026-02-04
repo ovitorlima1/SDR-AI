@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Send, Wand2, CheckCircle, AlertCircle, Copy } from 'lucide-react';
+import { Send, Wand2, CheckCircle, AlertCircle, Copy, Filter, MapPin, Building2 } from 'lucide-react';
 import { Client, MessageTemplate } from '../types';
 import { generateCampaignMessage } from '../services/geminiService';
 
@@ -8,27 +9,37 @@ interface CampaignManagerProps {
 }
 
 export const CampaignManager: React.FC<CampaignManagerProps> = ({ clients }) => {
-  const [selectedSegment, setSelectedSegment] = useState<string>('');
+  const [selectedProfile, setSelectedProfile] = useState<string>('');
+  const [filterState, setFilterState] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedMessage, setGeneratedMessage] = useState<MessageTemplate | null>(null);
   const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
 
-  // Filter out "Unknown" or unsegmented groups effectively if needed, 
-  // currently listing all unique segments
-  const segments = Array.from(new Set(clients.map(c => c.segment))).filter(s => s !== 'Não Segmentado');
+  const profiles = Array.from(new Set(clients.map(c => c.profile))).filter(Boolean);
+  const states = Array.from(new Set(clients.map(c => c.state))).filter(Boolean).sort();
+  const categories = ['Indústria', 'Serviços', 'Comércio'];
+
+  const filteredClients = clients.filter(c => {
+    const matchesProfile = !selectedProfile || c.profile === selectedProfile;
+    const matchesState = filterState === 'all' || c.state === filterState;
+    const matchesCategory = filterCategory === 'all' || c.category === filterCategory;
+    return matchesProfile && matchesState && matchesCategory;
+  });
 
   const handleGenerate = async () => {
-    if (!selectedSegment) return;
+    if (!selectedProfile) return;
     setIsGenerating(true);
     setGeneratedMessage(null);
     setSendStatus('idle');
 
     try {
-      const segmentClients = clients.filter(c => c.segment === selectedSegment);
-      const message = await generateCampaignMessage(selectedSegment, segmentClients);
+      const filterDesc = `Estado: ${filterState}, Categoria: ${filterCategory}`;
+      const message = await generateCampaignMessage(selectedProfile, filterDesc, filteredClients);
       setGeneratedMessage(message);
     } catch (e) {
-      alert("Erro ao gerar mensagem. Verifique a chave de API.");
+      alert("Erro ao gerar copy.");
     } finally {
       setIsGenerating(false);
     }
@@ -36,162 +47,136 @@ export const CampaignManager: React.FC<CampaignManagerProps> = ({ clients }) => 
 
   const handleSend = () => {
     setSendStatus('sending');
-    // Simulate API call delay
-    setTimeout(() => {
-      setSendStatus('sent');
-    }, 2000);
+    setTimeout(() => setSendStatus('sent'), 1500);
   };
 
-  const getClientsInSegment = () => {
-    return clients.filter(c => c.segment === selectedSegment);
-  };
+  const selectClassName = "w-full p-2.5 bg-white text-slate-900 border border-slate-300 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20 transition-all";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900">Campanhas Inteligentes</h2>
-        <p className="text-slate-500">Crie mensagens personalizadas para cada segmento usando IA.</p>
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Campanhas Regionais</h2>
+          <p className="text-slate-500">Combine Perfil, Região e Categoria para disparos ultra-personalizados.</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel: Configuration */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">1. Selecione o Segmento</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Filtros */}
+        <div className="lg:col-span-1 space-y-4">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+            <h3 className="text-xs font-black text-slate-400 uppercase flex items-center gap-2">
+              <Filter size={14} /> Filtros de Segmento
+            </h3>
             
-            {segments.length === 0 ? (
-              <div className="p-4 bg-yellow-50 text-yellow-700 rounded-lg text-sm flex items-start">
-                <AlertCircle size={16} className="mt-0.5 mr-2 flex-shrink-0" />
-                Você precisa executar a segmentação no Dashboard primeiro para ter grupos disponíveis.
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-600 mb-2 block">Mindset / Perfil</label>
+                <select 
+                  className={selectClassName}
+                  value={selectedProfile}
+                  onChange={(e) => setSelectedProfile(e.target.value)}
+                >
+                  <option value="" className="text-slate-400">Selecione um Perfil...</option>
+                  {profiles.map(p => <option key={p} value={p} className="text-slate-900">{p}</option>)}
+                </select>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {segments.map(segment => (
-                  <label 
-                    key={segment} 
-                    className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all
-                      ${selectedSegment === segment 
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary' 
-                        : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                  >
-                    <input 
-                      type="radio" 
-                      name="segment" 
-                      className="sr-only"
-                      checked={selectedSegment === segment}
-                      onChange={() => setSelectedSegment(segment)}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-slate-900">{segment}</div>
-                      <div className="text-xs text-slate-500 mt-1">
-                        {clients.filter(c => c.segment === segment).length} destinatários
-                      </div>
-                    </div>
-                    {selectedSegment === segment && <CheckCircle size={18} className="text-primary" />}
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
 
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">2. Gerar Conteúdo</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              O Agente Gemini analisará o perfil dos clientes selecionados para criar um tom de voz adequado.
-            </p>
+              <div>
+                <label className="text-xs font-bold text-slate-600 mb-2 block flex items-center gap-1">
+                  <MapPin size={12} className="text-slate-400" /> Estado (Região)
+                </label>
+                <select 
+                  className={selectClassName}
+                  value={filterState}
+                  onChange={(e) => setFilterState(e.target.value)}
+                >
+                  <option value="all" className="text-slate-900">Todos os Estados</option>
+                  {states.map(s => <option key={s} value={s} className="text-slate-900">{s}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-600 mb-2 block flex items-center gap-1">
+                  <Building2 size={12} className="text-slate-400" /> Categoria CNAE
+                </label>
+                <select 
+                  className={selectClassName}
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                >
+                  <option value="all" className="text-slate-900">Todas as Categorias</option>
+                  {categories.map(c => <option key={c} value={c} className="text-slate-900">{c}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-50">
+              <div className="p-3 bg-indigo-50 rounded-xl text-center">
+                <span className="text-2xl font-black text-indigo-600">{filteredClients.length}</span>
+                <p className="text-[10px] font-bold text-indigo-400 uppercase">Leads Filtrados</p>
+              </div>
+            </div>
+
             <button
               onClick={handleGenerate}
-              disabled={!selectedSegment || isGenerating}
-              className="w-full flex items-center justify-center py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg font-medium transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!selectedProfile || isGenerating || filteredClients.length === 0}
+              className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 disabled:opacity-50 transition-all shadow-lg"
             >
-              {isGenerating ? (
-                <>
-                  <Wand2 className="animate-spin mr-2" size={18} />
-                  Criando Copy...
-                </>
-              ) : (
-                <>
-                  <Wand2 className="mr-2" size={18} />
-                  Gerar com IA
-                </>
-              )}
+              {isGenerating ? <><Wand2 className="animate-spin" size={16} /> Criando Copy...</> : <><Wand2 size={16} /> Gerar com IA</>}
             </button>
           </div>
         </div>
 
-        {/* Right Panel: Preview & Action */}
-        <div className="lg:col-span-2">
+        {/* Preview */}
+        <div className="lg:col-span-3">
           {generatedMessage ? (
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-slate-800">Preview da Mensagem</h3>
-                <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-md uppercase">
-                  Rascunho
-                </span>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex flex-col h-full">
+              <div className="p-6 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">L</div>
+                  <div>
+                    <h4 className="font-bold text-slate-900">Preview da Campanha</h4>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Segmento: {selectedProfile}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold">Filtros Ativos</p>
+                  <p className="text-xs font-bold text-slate-700">{filterState} · {filterCategory}</p>
+                </div>
               </div>
               
-              <div className="p-6 flex-1 space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Assunto</label>
-                  <input 
-                    type="text" 
-                    value={generatedMessage.subject} 
-                    readOnly
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800 font-medium"
-                  />
+              <div className="p-8 flex-1 space-y-6">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Assunto do Email</label>
+                  <input readOnly value={generatedMessage.subject} className="w-full bg-slate-50 p-3 border border-slate-100 rounded-xl font-bold text-slate-800" />
                 </div>
-                
-                <div className="flex-1">
-                   <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Corpo do Email</label>
-                   <textarea
-                    value={generatedMessage.body}
-                    readOnly
-                    className="w-full h-64 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-700 leading-relaxed resize-none"
-                   />
-                </div>
-
-                <div className="bg-slate-50 p-4 rounded-lg text-sm text-slate-600 border border-slate-200">
-                   <p><span className="font-semibold">Alvo:</span> {getClientsInSegment().length} contatos em "{selectedSegment}"</p>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Mensagem Estratégica</label>
+                  <textarea readOnly value={generatedMessage.body} className="w-full h-80 bg-slate-50 p-4 border border-slate-100 rounded-xl text-slate-700 leading-relaxed resize-none" />
                 </div>
               </div>
 
-              <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-xl flex justify-between items-center">
-                 <button className="text-slate-500 hover:text-primary flex items-center text-sm font-medium">
-                    <Copy size={16} className="mr-2" />
-                    Copiar Texto
-                 </button>
-
-                 {sendStatus === 'sent' ? (
-                   <button disabled className="flex items-center px-6 py-2 bg-green-600 text-white rounded-lg font-bold">
-                     <CheckCircle size={20} className="mr-2" />
-                     Enviado com Sucesso!
-                   </button>
-                 ) : (
-                   <button 
-                    onClick={handleSend}
-                    disabled={sendStatus === 'sending'}
-                    className="flex items-center px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold transition-colors shadow-sm disabled:opacity-70"
-                   >
-                     {sendStatus === 'sending' ? 'Enviando...' : (
-                       <>
-                         <Send size={18} className="mr-2" />
-                         Disparar Campanha
-                       </>
-                     )}
-                   </button>
-                 )}
+              <div className="p-6 border-t border-slate-200 flex justify-between items-center bg-slate-50">
+                <button className="text-slate-500 hover:text-indigo-600 flex items-center gap-2 text-sm font-bold">
+                  <Copy size={16} /> Copiar Copy
+                </button>
+                <button 
+                  onClick={handleSend}
+                  disabled={sendStatus !== 'idle'}
+                  className={`px-8 py-3 rounded-xl font-black text-sm flex items-center gap-2 transition-all shadow-lg
+                    ${sendStatus === 'sent' ? 'bg-green-600 text-white' : 'bg-primary text-slate-900 hover:bg-primary/90'}
+                  `}
+                >
+                  {sendStatus === 'sending' ? 'Processando Disparo...' : sendStatus === 'sent' ? <><CheckCircle size={18} /> Campanhas Iniciadas</> : <><Send size={18} /> Enviar para {filteredClients.length} leads</>}
+                </button>
               </div>
             </div>
           ) : (
-            <div className="bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 h-full flex flex-col items-center justify-center text-center p-8 text-slate-400">
-               <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm">
-                 <Wand2 size={32} className="text-slate-300" />
-               </div>
-               <h3 className="text-lg font-medium text-slate-600 mb-2">Aguardando Geração</h3>
-               <p className="max-w-md">
-                 Selecione um segmento ao lado e clique em "Gerar com IA" para criar uma mensagem personalizada.
-               </p>
+            <div className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl h-full flex flex-col items-center justify-center p-12 text-center text-slate-400">
+              <div className="p-5 bg-white rounded-full shadow-sm mb-4"><Wand2 size={48} className="text-slate-200" /></div>
+              <h3 className="text-xl font-bold text-slate-600 mb-2">Aguardando Configuração</h3>
+              <p className="max-w-md">Selecione os filtros de Perfil, Região e Categoria ao lado e clique em Gerar para ver a mágica da IA.</p>
             </div>
           )}
         </div>
