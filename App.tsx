@@ -11,32 +11,34 @@ import {
   fetchClientsFromDB, 
   saveClientsToDB, 
   updateClientAIResult, 
-  saveToIntelligenceRegistry, 
-  findExistingIntelligence,
-  getDBStats,
-  fetchTotalClientsCount
+  fetchTotalClientsCount,
+  fetchPendingClients,
+  fetchTotalPendingCount
 } from './services/persistenceService';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [clients, setClients] = useState<Client[]>([]);
   const [totalLeads, setTotalLeads] = useState(0);
+  const [totalPending, setTotalPending] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [pendingQualification, setPendingQualification] = useState<string | null>(null);
-  const [registryCount, setRegistryCount] = useState(0);
 
   const loadData = async () => {
     setIsLoading(true);
     try {
+      // Carrega os clientes para exibição (limite de 20k)
       const dbClients = await fetchClientsFromDB();
-      const stats = await getDBStats();
+      // Conta o total real do banco (ex: 57k)
       const actualTotal = await fetchTotalClientsCount();
+      // Conta quantos faltam segmentar no total
+      const pendingTotal = await fetchTotalPendingCount();
       
       setClients(dbClients);
       setTotalLeads(actualTotal);
-      setRegistryCount(stats);
+      setTotalPending(pendingTotal);
     } catch (e) {
       console.error("Falha na conexão inicial:", e);
     } finally {
@@ -48,55 +50,49 @@ const App: React.FC = () => {
     loadData();
   }, []);
 
-  const handleRunAnalysis = async () => {
-    const clientsToAnalyze = clients.filter(c => c.segment === 'Não Segmentado');
-    if (clientsToAnalyze.length === 0) {
-      alert("Nenhum lead pendente de segmentação na amostra atual.");
-      return;
-    }
-
+  const handleRunAnalysis = async (limit: number) => {
     setIsAnalyzing(true);
-    const totalToProcess = clientsToAnalyze.length;
-    setProgress({ current: 0, total: totalToProcess });
+    // Define o total esperado visualmente (pode ser menor se o banco tiver menos que o limite)
+    setProgress({ current: 0, total: limit });
 
     const BATCH_SIZE = 3; 
 
     try {
+      // 1. Busca leads pendentes diretamente do banco (novos, que podem não estar na tela)
+      const clientsToAnalyze = await fetchPendingClients(limit);
+
+      if (clientsToAnalyze.length === 0) {
+        alert("Não há mais leads pendentes de segmentação no banco!");
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // Atualiza o total real para a barra de progresso
+      const totalToProcess = clientsToAnalyze.length;
+      setProgress({ current: 0, total: totalToProcess });
+
+      // 2. Processa em lotes pequenos
       for (let i = 0; i < clientsToAnalyze.length; i += BATCH_SIZE) {
         const batch = clientsToAnalyze.slice(i, i + BATCH_SIZE);
         
-        for (const client of batch) {
-          const cached = await findExistingIntelligence(client.company);
-          
-          if (cached) {
-            const result = {
-              clientId: client.id,
-              segmentName: cached.segment,
-              category: cached.category,
-              state: cached.state,
-              cnae: cached.cnae,
-              profile: cached.profile,
-              description: cached.ai_rationale
-            };
-            await updateClientAIResult(client.id, result as any);
-          } else {
-            const aiResults = await analyzeSegments([client]);
-            if (aiResults.length > 0) {
-              const res = aiResults[0];
-              await saveToIntelligenceRegistry(res, client.company);
-              await updateClientAIResult(client.id, res);
-            }
-            await new Promise(resolve => setTimeout(resolve, 2000));
-          }
-        }
-
-        // Recarrega apenas dados necessários
-        const updatedFromDB = await fetchClientsFromDB();
-        setClients(updatedFromDB);
-        setRegistryCount(await getDBStats());
+        // Chama a IA (Gemini)
+        const aiResults = await analyzeSegments(batch);
         
+        // Salva os resultados no banco
+        for (const res of aiResults) {
+          await updateClientAIResult(res.clientId, res);
+        }
+        
+        // Atualiza barra de progresso
         setProgress(prev => ({ ...prev, current: Math.min(i + BATCH_SIZE, totalToProcess) }));
+        
+        // Pequeno delay para evitar rate limit
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
+
+      // 3. Recarrega os dados para mostrar os novos mapeamentos na tela
+      await loadData();
+
     } catch (error) {
       console.error(error);
       alert("Erro durante o processamento de inteligência.");
@@ -133,10 +129,10 @@ const App: React.FC = () => {
           <Dashboard 
             clients={clients} 
             totalLeadsOverride={totalLeads}
+            totalPendingOverride={totalPending}
             onAnalyze={handleRunAnalysis} 
             isAnalyzing={isAnalyzing}
             progress={progress}
-            registryCount={registryCount}
           />
         );
       case 'clients':
@@ -147,7 +143,10 @@ const App: React.FC = () => {
             onQualify={(name) => {
               setPendingQualification(name);
               setCurrentView('qualifier');
-            }} 
+            }}
+            onAnalyze={handleRunAnalysis}
+            isAnalyzing={isAnalyzing}
+            totalPending={totalPending}
           />
         );
       case 'qualifier':

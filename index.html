@@ -4,16 +4,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SDR Billi</title>
+    <title>Severino</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              primary: '#eab308', // Dourado/Amarelo da Billi
-              secondary: '#1e293b',
-              accent: '#0ea5e9',
+              primary: '#F5BE01',   // Amarelo Vibrante
+              secondary: '#1E1E1E', // Cinza Escuro
+              accent: '#E7BB0D',    // Amarelo Ouro/Escuro
+              black: '#000000',     // Preto Puro
+              white: '#FFFFFF',     // Branco
+              slate: {
+                900: '#000000',     // Substituindo Slate 900 por Preto
+                800: '#1E1E1E',     // Substituindo Slate 800 pelo Cinza Billi
+              }
             }
           }
         }
@@ -34,7 +40,7 @@
 }
 </script>
 </head>
-  <body class="bg-gray-50 text-slate-900 antialiased">
+  <body class="bg-gray-100 text-[#1E1E1E] antialiased">
     <div id="root"></div>
   </body>
 </html>

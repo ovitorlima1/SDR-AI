@@ -28,22 +28,33 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, initialDelay =
 }
 
 export const analyzeSegments = async (clients: Client[]): Promise<SegmentAnalysis[]> => {
-  const companyList = clients.map(c => ({ id: c.id, company: c.company }));
+  // Prepara a lista enviando CNPJ se existir, ou Empresa, para maximizar chances de identificação
+  const companyList = clients.map(c => ({ 
+    id: c.id, 
+    company: c.company,
+    cnpj: c.cnpj
+  }));
 
   const schema = {
     type: Type.ARRAY,
     items: {
       type: Type.OBJECT,
       properties: {
-        clientId: { type: Type.STRING },
-        segmentName: { type: Type.STRING },
-        category: { type: Type.STRING, description: "Deve ser: Indústria, Serviços ou Comércio" },
-        state: { type: Type.STRING, description: "Sigla do Estado (UF)" },
-        cnae: { type: Type.STRING, description: "Código CNAE encontrado na web" },
-        profile: { type: Type.STRING, description: "Perfil: Gestor, Pagador, Arquiteto Financeiro ou Oportunista" },
-        description: { type: Type.STRING }
+        clientId: { type: Type.STRING, description: "Deve ser IDÊNTICO ao 'id' fornecido na lista de entrada." },
+        
+        // Campos de Enriquecimento (O AI devolve o que achou na web)
+        foundCompany: { type: Type.STRING, description: "A Razão Social OFICIAL encontrada na busca web." },
+        foundCnpj: { type: Type.STRING, description: "O CNPJ encontrado/validado na busca web (formato XX.XXX.XXX/0001-XX)." },
+        
+        // Campos de Análise
+        segmentName: { type: Type.STRING, description: "Nome curto do segmento (ex: Metalurgia, Varejo Têxtil)." },
+        category: { type: Type.STRING, description: "'Indústria', 'Serviços' ou 'Comércio'." },
+        state: { type: Type.STRING, description: "Sigla do Estado (UF)." },
+        cnae: { type: Type.STRING, description: "Código e descrição do CNAE Principal." },
+        profile: { type: Type.STRING, description: "'Gestor', 'Pagador', 'Arquiteto Financeiro' ou 'Oportunista'." },
+        description: { type: Type.STRING, description: "Justificativa." }
       },
-      required: ['clientId', 'segmentName', 'category', 'state', 'cnae', 'profile', 'description']
+      required: ['clientId', 'foundCompany', 'foundCnpj', 'segmentName', 'category', 'state', 'cnae', 'profile', 'description']
     }
   };
 
@@ -51,13 +62,31 @@ export const analyzeSegments = async (clients: Client[]): Promise<SegmentAnalysi
     try {
       const response = await ai.models.generateContent({
         model: MODEL_NAME,
-        contents: `Você é um Analista de Inteligência de Mercado. 
-        Para cada empresa da lista abaixo, use o Google Search para encontrar seu CNAE principal, Localização (Estado) e Atividade Real.
-        Com base no CNAE e atividade, classifique em:
-        - Categoria: Indústria, Serviços ou Comércio.
-        - Perfil: Gestor (conservador), Pagador (focado em fluxo), Arquiteto Financeiro (estratégico/ideal) ou Oportunista.
-        
-        Lista de empresas: ${JSON.stringify(companyList)}`,
+        contents: `VOCÊ É O SEVERINO, ESPECIALISTA EM ENRIQUECIMENTO DE DADOS (DATA ENRICHMENT).
+
+        MISSÃO: 
+        1. Para cada empresa da lista, use o 'googleSearch' para encontrar seus dados oficiais (CNPJ, Razão Social, CNAE).
+        2. Atualize os dados cadastrais (Enriquecimento).
+        3. Com base no CNAE encontrado, defina o Perfil Comportamental (Segmentação).
+
+        FLUXO DE TRABALHO:
+        Passo 1: BUSCA
+        - Pesquise pelo CNPJ fornecido OU pelo Nome da Empresa + "CNPJ" + "CNAE".
+        - Identifique a Razão Social correta e o CNPJ formatado.
+
+        Passo 2: CLASSIFICAÇÃO (CNAE)
+        - Identifique a atividade principal.
+        - Indústria: Fabricação, Transformação.
+        - Comércio: Revenda, Atacado, Varejo.
+        - Serviços: Consultoria, Tecnologia, Transporte, Manutenção.
+
+        Passo 3: PERFIL (MINDSET DO DECISOR)
+        - "Arquiteto Financeiro": Grandes Indústrias, Engenharia Complexa (Foco: ROI, Longo Prazo).
+        - "Pagador": Comércio, Varejo, Pequenas Empresas (Foco: Preço, Fluxo de Caixa).
+        - "Gestor": Serviços B2B, Tech, RH (Foco: Eficiência, Processo).
+        - "Oportunista": Negócios sem foco claro ou momentâneos.
+
+        INPUT: ${JSON.stringify(companyList)}`,
         config: {
           tools: [{ googleSearch: {} }],
           responseMimeType: "application/json",
@@ -88,7 +117,7 @@ export const generateCampaignMessage = async (segment: string, filterContext: st
     try {
       const response = await ai.models.generateContent({
         model: MODEL_NAME,
-        contents: `Crie um cold mail focado no perfil "${segment}" e contexto de filtros "${filterContext}". Alvos de exemplo: ${context}. Use uma abordagem de "Arquiteto Financeiro".`,
+        contents: `Crie um cold mail focado no perfil "${segment}" e contexto de filtros "${filterContext}". Alvos de exemplo: ${context}. Use uma abordagem de "Arquiteto Financeiro". Assine como 'Severino'.`,
         config: { responseMimeType: "application/json", responseSchema: schema }
       });
       return JSON.parse(response.text || '{}');
@@ -189,7 +218,7 @@ export const qualifyCompany = async (companyOrCnpj: string): Promise<BilliAnalys
           tools: [{ googleSearch: {} }],
           responseMimeType: "application/json",
           responseSchema: schema,
-          systemInstruction: `Você é o BILLI, um auditor de dados corporativos focado em VERACIDADE.
+          systemInstruction: `Você é o SEVERINO, um auditor de dados corporativos focado em VERACIDADE.
           Regra de Ouro: A integridade do par (Razão Social <-> CNPJ) é absoluta.
           
           - Se o input for um CNPJ, a Razão Social retornada DEVE ser a proprietária legal desse documento. Não invente.

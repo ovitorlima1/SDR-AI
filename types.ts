@@ -1,25 +1,48 @@
 
 export interface Client {
   id: string;
-  name: string;
-  company: string;
-  cnpj?: string; // Adicionado campo CNPJ
-  role: string;
-  industry: string;
-  employees: number;
-  lastContact?: string;
-  segment: string;
-  category: 'Indústria' | 'Serviços' | 'Comércio' | 'Não Definido';
-  state: string;
-  cnae?: string;
-  profile?: string; // Gestor, Pagador, Arquiteto Financeiro, etc.
-  aiRationale?: string;
+  
+  // Mapeamento direto da Tabela Energia
+  cnpj?: string;
+  name: string; // Mapeado de 'nome'
+  municipio?: string;
+  endereco?: string;
+  clienteLivre?: string;
+  microGerador?: string;
+  nivelTensao?: string;
+  classePrincipal?: string;
+  subclasse?: string;
+  potencia?: string;
+  tipoTarifa?: string; // Mapeado de 'tipo_tarifa'
+  tipoCliente?: string;
+  dataDe?: string;
+  dataAte?: string;
+  contratoAtivo?: string;
+  telFixo?: string;
+  telMovel?: string;
   email: string;
-  tariffType?: string; // Ex: A4 - THS_VERDE, OPT B2, etc.
+  
+  // Campos de Sistema/IA
+  company: string; // Alias para 'nome' na visualização
+  role: string; // Fixo 'Decisor' ou derivado
+  industry: string; // Alias para 'classePrincipal'
+  employees: number; // Placeholder
+  lastContact?: string;
+  
+  // Inteligência Severino
+  segment: string; // Alias para 'tipo_perfil' para compatibilidade visual
+  category: 'Indústria' | 'Serviços' | 'Comércio' | 'Não Definido'; // Derivado do CNAE
+  state: string; // Derivado de municipio ou busca
+  cnae?: string;
+  profile?: string; // Mapeado de 'tipo_perfil'
+  aiRationale?: string;
+  tariffType?: string; // Alias para compatibilidade visual
 }
 
 export interface SegmentAnalysis {
   clientId: string;
+  foundCompany?: string;
+  foundCnpj?: string;
   segmentName: string;
   category: 'Indústria' | 'Serviços' | 'Comércio';
   state: string;
@@ -32,6 +55,19 @@ export interface MessageTemplate {
   subject: string;
   body: string;
   segmentName: string;
+}
+
+export interface Campaign {
+  id: string;
+  name: string;
+  segmentProfile: string;
+  segmentRegion: string;
+  segmentCategory: string;
+  totalLeads: number;
+  subject: string;
+  body: string;
+  status: 'Enviada' | 'Agendada' | 'Processando';
+  createdAt: string;
 }
 
 export interface BilliAnalysis {
